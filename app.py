@@ -261,8 +261,7 @@ else:
 if not all_properties:
     st.error("❌ No se encontraron propiedades.")
     if not modo_demo:
-        st.info("💡 **Solución:** Activá el checkbox **'Modo demo (sin internet)'** en el panel izquierdo y volvé a ejecutar. "
-                "El modo demo usa datos de ejemplo y no requiere conexión a ZonaProp ni MercadoLibre.")
+        st.info("💡 **Solución:** Activá el checkbox **'Modo demo (sin internet)'** en el panel izquierdo y volvé a ejecutar.")
     st.stop()
 
 progress.progress(40)
@@ -371,8 +370,8 @@ def style_disc(val):
 
 styled_df = (
     df.style
-    .applymap(style_rec,  subset=["Recomendación"])
-    .applymap(style_disc, subset=["vs. mercado"])
+    .map(style_rec,  subset=["Recomendación"])
+    .map(style_disc, subset=["vs. mercado"])
     .set_properties(**{"font-size": "13px"})
     .hide(axis="index")
 )
