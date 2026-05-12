@@ -370,8 +370,8 @@ def style_disc(val):
 
 styled_df = (
     df.style
-    .applymap(style_rec,  subset=["Recomendación"])
-    .applymap(style_disc, subset=["vs. mercado"])
+    .map(style_rec,  subset=["Recomendación"])
+    .map(style_disc, subset=["vs. mercado"])
     .set_properties(**{"font-size": "13px"})
     .hide(axis="index")
 )
