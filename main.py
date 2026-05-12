@@ -16,6 +16,7 @@ Uso:
 import argparse
 import sys
 import os
+from typing import Optional
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
@@ -70,6 +71,7 @@ def run(
     detail_count: int,
     demo_mode: bool,
     discount_threshold: float,
+    excel_output: Optional[str] = None,
 ) -> None:
     console.rule("[bold magenta]FLIPPING ANALYZER — Buenos Aires[/bold magenta]")
 
@@ -148,7 +150,19 @@ def run(
         show_details=detail_count,
     )
 
-    # ── 5. RESUMEN DE MEJORES OPORTUNIDADES ─────────────────────────────
+    # ── 5. EXCEL ────────────────────────────────────────────────────────────
+    if excel_output is not False:
+        from reports.excel import export_excel
+        path = export_excel(
+            analyses=analyses,
+            market_ref=market_ref,
+            neighborhood=display_neighborhood,
+            total_props=len(all_properties),
+            output_path=excel_output if isinstance(excel_output, str) else None,
+        )
+        console.print(f"\n[bold green]✓ Archivo Excel guardado:[/bold green] [cyan]{path}[/cyan]")
+
+    # ── 6. RESUMEN DE MEJORES OPORTUNIDADES ─────────────────────────────
     buy_recs = [a for a in analyses if a.flipping_recommendation == "COMPRAR"]
     if buy_recs:
         console.print(
@@ -222,6 +236,14 @@ Ejemplos:
         default=DEFAULT_DISCOUNT_THRESHOLD,
         help=f"Umbral de descuento vs. mercado %% (default: {DEFAULT_DISCOUNT_THRESHOLD})",
     )
+    parser.add_argument(
+        "--excel",
+        nargs="?",
+        const=True,
+        default=False,
+        metavar="ARCHIVO.xlsx",
+        help="Exportar resultados a Excel (opcionalmente especificá el nombre del archivo)",
+    )
 
     args = parser.parse_args()
 
@@ -244,6 +266,7 @@ Ejemplos:
         detail_count=args.details,
         demo_mode=args.demo,
         discount_threshold=args.discount,
+        excel_output=args.excel,
     )
 
 
