@@ -44,22 +44,6 @@ CATEGORY_MAP = {
     PropertyType.PH: "MLA1475",
 }
 
-# MercadoLibre neighborhood IDs for CABA (subset)
-NEIGHBORHOOD_IDS: dict[str, str] = {
-    "palermo": "TUxBUFBBTDQzNTM1",
-    "belgrano": "TUxBUEJFTDQ2MzU1",
-    "recoleta": "TUxBUFJFQzQyOTU1",
-    "caballito": "TUxBUENBQjQ3NDU1",
-    "flores": "TUxBUEZMTzQ3NTU1",
-    "almagro": "TUxBUEFMTTQ2OTU1",
-    "villa_crespo": "TUxBUFZJTDQ2MTU1",
-    "san_telmo": "TUxBUFNBTjQyMTU1",
-    "nunez": "TUxBUE5VTjQ0NTU1",
-    "colegiales": "TUxBUENPTDQ2MjU1",
-    "chacarita": "TUxBUENIQTQ2NjU1",
-    "boedo": "TUxBUEJPRTQ3MzU1",
-}
-
 
 def _extract_attribute(attributes: list[dict], attr_id: str) -> Optional[str]:
     for a in attributes:
@@ -197,22 +181,14 @@ class MercadoLibreScraper(BaseScraper):
         limit: int = 50,
     ) -> dict:
         category = CATEGORY_MAP.get(prop_type, "MLA1467")
+        nb_display = neighborhood.replace("_", " ")
         params: dict = {
             "category": category,
-            "condition": "not_specified",
+            "q": f"departamento venta {nb_display} capital federal",
             "limit": limit,
             "offset": offset,
             "sort": "price_asc",
         }
-
-        # Use neighborhood ID if known, otherwise free-text search
-        nb_id = NEIGHBORHOOD_IDS.get(neighborhood.lower().replace(" ", "_"))
-        if nb_id:
-            params["neighborhood_id"] = nb_id
-        else:
-            params["q"] = f"departamento {neighborhood} capital federal"
-            params["state"] = "TUxBUENBUGw3M2E1"  # Buenos Aires (Capital Federal)
-
         url = f"{API_BASE}/sites/MLA/search"
         response = self._get(url, params=params)
         return response.json()
