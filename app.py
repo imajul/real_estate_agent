@@ -205,9 +205,14 @@ for mod in list(sys.modules.keys()):
     if any(mod.startswith(p) for p in ["models", "config", "demo_data", "scrapers", "analyzers", "reports"]):
         del sys.modules[mod]
 
-from models import Property
-from analyzers.market import compute_market_reference
-from analyzers.ai_evaluator import AIEvaluator, batch_evaluate
+try:
+    from models import Property
+    from analyzers.market import compute_market_reference
+    from analyzers.ai_evaluator import AIEvaluator, batch_evaluate
+except Exception as e:
+    st.error(f"❌ Error al importar módulos: {e}")
+    st.info("Asegurate de estar en la carpeta correcta del proyecto y que el repositorio esté actualizado (`git pull origin main`).")
+    st.stop()
 
 status = st.empty()
 progress = st.progress(0)
@@ -217,13 +222,18 @@ status.info("🔍 Recolectando propiedades...")
 progress.progress(10)
 
 all_properties = []
+scraping_errors = []
 
 if modo_demo:
-    from demo_data import DEMO_PROPERTIES
-    nb = barrio.lower()
-    all_properties = [p for p in DEMO_PROPERTIES if nb in p.neighborhood.lower()]
-    if not all_properties:
-        all_properties = list(DEMO_PROPERTIES)
+    try:
+        from demo_data import DEMO_PROPERTIES
+        nb = barrio.lower()
+        all_properties = [p for p in DEMO_PROPERTIES if nb in p.neighborhood.lower()]
+        if not all_properties:
+            all_properties = list(DEMO_PROPERTIES)
+    except Exception as e:
+        st.error(f"❌ Error cargando datos demo: {e}")
+        st.stop()
 else:
     if "zonaprop" in fuentes:
         try:
@@ -232,7 +242,7 @@ else:
                 props = s.search(barrio, 50)
             all_properties.extend(props)
         except Exception as e:
-            st.warning(f"ZonaProp: {e}")
+            scraping_errors.append(f"**ZonaProp:** {e}")
 
     if "mercadolibre" in fuentes:
         try:
@@ -241,10 +251,18 @@ else:
                 props = s.search(barrio, 50)
             all_properties.extend(props)
         except Exception as e:
-            st.warning(f"MercadoLibre: {e}")
+            scraping_errors.append(f"**MercadoLibre:** {e}")
+
+    if scraping_errors:
+        with st.expander("⚠️ Errores de scraping", expanded=True):
+            for err in scraping_errors:
+                st.warning(err)
 
 if not all_properties:
-    st.error("No se encontraron propiedades. Activá el modo demo o verificá la conexión.")
+    st.error("❌ No se encontraron propiedades.")
+    if not modo_demo:
+        st.info("💡 **Solución:** Activá el checkbox **'Modo demo (sin internet)'** en el panel izquierdo y volvé a ejecutar. "
+                "El modo demo usa datos de ejemplo y no requiere conexión a ZonaProp ni MercadoLibre.")
     st.stop()
 
 progress.progress(40)
