@@ -207,10 +207,23 @@ class MercadoLibreScraper(BaseScraper):
             try:
                 data = self._search_api(neighborhood, prop_type, offset, page_size)
             except Exception as e:
-                print(f"[MercadoLibre] Error en offset {offset}: {e}")
-                break
+                raise RuntimeError(f"Error llamando a la API de ML: {e}") from e
 
+            # Surface diagnostic info for debugging
+            paging = data.get("paging", {})
+            total = paging.get("total", 0)
             results = data.get("results", [])
+            error = data.get("error")
+            message = data.get("message")
+            if error or message:
+                raise RuntimeError(f"API respondió con error: {error} — {message}")
+            if offset == 0 and total == 0:
+                raise RuntimeError(
+                    f"La API no devolvió resultados (total=0). "
+                    f"Posible causa: Streamlit Cloud bloquea requests externos. "
+                    f"Usá Modo demo o ejecutá la app localmente."
+                )
+
             if not results:
                 break
 
@@ -219,10 +232,7 @@ class MercadoLibreScraper(BaseScraper):
                 if prop:
                     properties.append(prop)
 
-            paging = data.get("paging", {})
-            total = paging.get("total", 0)
             offset += page_size
-
             if offset >= total or offset >= max_results:
                 break
 
