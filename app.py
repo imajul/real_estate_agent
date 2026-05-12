@@ -159,6 +159,20 @@ with st.sidebar:
     detalle_n = st.slider("Propiedades con detalle completo", 1, 10, 5)
 
     st.markdown("---")
+    st.markdown("### 🛒 MercadoLibre API (opcional)")
+    ml_app_id = st.text_input(
+        "App ID",
+        placeholder="1234567890",
+        help="Registrate gratis en developers.mercadolibre.com.ar",
+    )
+    ml_secret = st.text_input(
+        "Secret Key",
+        type="password",
+        placeholder="...",
+    )
+    st.caption("Con credenciales ML obtenés datos reales desde la nube.")
+
+    st.markdown("---")
     st.markdown("### ⚙️ Opciones")
     modo_demo = st.checkbox("Modo demo (sin internet)", value=True,
                             help="Usa datos de ejemplo para probar sin scraping real")
@@ -242,12 +256,21 @@ else:
                 props = s.search(barrio, 50)
             all_properties.extend(props)
         except Exception as e:
-            scraping_errors.append(f"**ZonaProp:** {e}")
+            scraping_errors.append(
+                f"**ZonaProp:** {e} — ZonaProp solo funciona en entornos locales (no en la nube)."
+            )
 
     if "mercadolibre" in fuentes:
+        ml_token = None
+        if ml_app_id and ml_secret:
+            try:
+                from scrapers.mercadolibre import get_access_token
+                ml_token = get_access_token(ml_app_id.strip(), ml_secret.strip())
+            except Exception as e:
+                scraping_errors.append(f"**MercadoLibre OAuth:** No se pudo obtener token: {e}")
         try:
             from scrapers.mercadolibre import MercadoLibreScraper
-            with MercadoLibreScraper() as s:
+            with MercadoLibreScraper(access_token=ml_token) as s:
                 props = s.search(barrio, 50)
             all_properties.extend(props)
         except Exception as e:
