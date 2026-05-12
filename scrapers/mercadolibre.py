@@ -72,7 +72,6 @@ def _item_to_property(item: dict) -> Optional[Property]:
         permalink = item.get("permalink", "")
         title = item.get("title", "Sin título")
 
-        # Price
         currency = item.get("currency_id", "USD")
         price = item.get("price")
         price_usd = float(price) if currency == "USD" and price else None
@@ -91,7 +90,6 @@ def _item_to_property(item: dict) -> Optional[Property]:
         except ValueError:
             rooms = bedrooms = bathrooms = None
 
-        # Location
         location = item.get("location", {})
         city_data = location.get("city", {})
         state_data = location.get("state", {})
@@ -99,10 +97,8 @@ def _item_to_property(item: dict) -> Optional[Property]:
         address_line = location.get("address_line", "")
         neighborhood = neighborhood_data.get("name", "") or city_data.get("name", "")
         city = state_data.get("name", "Buenos Aires")
-
         address = address_line or neighborhood or "Sin dirección"
 
-        # Property type from category
         cat_id = item.get("category_id", "")
         if cat_id == "MLA1472":
             prop_type = PropertyType.CASA
@@ -111,7 +107,6 @@ def _item_to_property(item: dict) -> Optional[Property]:
         else:
             prop_type = PropertyType.DEPARTAMENTO
 
-        # Amenities from attributes
         amenities = []
         for attr in attributes:
             attr_id = attr.get("id", "")
@@ -130,7 +125,6 @@ def _item_to_property(item: dict) -> Optional[Property]:
         parking = "cochera" in amenities
         photos_count = len(item.get("pictures", []))
 
-        # Antiquity
         antiquity_raw = _extract_attribute(attributes, "PROPERTY_AGE")
         try:
             antiquity = int(antiquity_raw) if antiquity_raw else None
@@ -170,6 +164,10 @@ class MercadoLibreScraper(BaseScraper):
 
     def __init__(self, access_token: Optional[str] = None, **kwargs):
         super().__init__(**kwargs)
+        self.client.headers.update({
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        })
         if access_token:
             self.client.headers.update({"Authorization": f"Bearer {access_token}"})
 
@@ -189,8 +187,7 @@ class MercadoLibreScraper(BaseScraper):
             "offset": offset,
             "sort": "price_asc",
         }
-        url = f"{API_BASE}/sites/MLA/search"
-        response = self._get(url, params=params)
+        response = self._get(f"{API_BASE}/sites/MLA/search", params=params)
         return response.json()
 
     def search(
@@ -209,7 +206,6 @@ class MercadoLibreScraper(BaseScraper):
             except Exception as e:
                 raise RuntimeError(f"Error llamando a la API de ML: {e}") from e
 
-            # Surface diagnostic info for debugging
             paging = data.get("paging", {})
             total = paging.get("total", 0)
             results = data.get("results", [])
@@ -219,9 +215,8 @@ class MercadoLibreScraper(BaseScraper):
                 raise RuntimeError(f"API respondió con error: {error} — {message}")
             if offset == 0 and total == 0:
                 raise RuntimeError(
-                    f"La API no devolvió resultados (total=0). "
-                    f"Posible causa: Streamlit Cloud bloquea requests externos. "
-                    f"Usá Modo demo o ejecutá la app localmente."
+                    "La API no devolvió resultados (total=0). "
+                    "Usá Modo demo o ejecutá la app localmente."
                 )
 
             if not results:
@@ -239,7 +234,6 @@ class MercadoLibreScraper(BaseScraper):
         return properties[:max_results]
 
     def get_item_details(self, item_id: str) -> Optional[dict]:
-        """Fetch full item details including description."""
         try:
             item_resp = self._get(f"{API_BASE}/items/{item_id}")
             desc_resp = self._get(f"{API_BASE}/items/{item_id}/description")
