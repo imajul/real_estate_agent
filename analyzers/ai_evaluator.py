@@ -173,7 +173,7 @@ class AIEvaluator:
         try:
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=1024,
+                max_tokens=2048,
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": prompt}],
             )
@@ -201,7 +201,9 @@ class AIEvaluator:
                 inv = property.price_usd + analysis.estimated_renovation_cost_usd
                 analysis.roi_pct = round(profit / inv * 100, 1) if inv > 0 else None
         except Exception as e:
-            analysis.ai_summary = f"Error en análisis IA: {e}"
+            import traceback
+            print(f"\n[AI] Error evaluando '{property.title[:40]}': {e}")
+            traceback.print_exc()
             self._heuristic_enrich(analysis, property, market_ref)
 
     def _heuristic_enrich(
