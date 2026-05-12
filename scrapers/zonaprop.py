@@ -1,8 +1,5 @@
 """
-ZonaProp scraper.
-
-ZonaProp renders its listing data inside a <script id="__NEXT_DATA__"> JSON blob,
-so a plain HTTP GET is sufficient (no headless browser needed).
+ZonaProp scraper using Playwright (headless Chromium) to bypass 403 blocks.
 
 URL pattern:
   https://www.zonaprop.com.ar/departamentos-venta-{neighborhood}.html
@@ -10,12 +7,11 @@ URL pattern:
 """
 
 import json
-import re
 import uuid
 from typing import Optional
 from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
-from scrapers.base import BaseScraper
 from models import Property, PropertySource, PropertyType, OperationType
 
 
@@ -46,7 +42,6 @@ def _slug(neighborhood: str) -> str:
 
 
 def _parse_price(raw: dict) -> tuple[Optional[float], Optional[float]]:
-    """Return (price_usd, price_ars)."""
     currency = raw.get("currency", "")
     amount = raw.get("price")
     if amount is None:
@@ -65,22 +60,14 @@ def _parse_price(raw: dict) -> tuple[Optional[float], Optional[float]]:
 def _extract_amenities(posting: dict) -> list[str]:
     amenities = []
     features = posting.get("generalFeatures", {}) or {}
-    if features.get("balcony"):
-        amenities.append("balcón")
-    if features.get("terrace"):
-        amenities.append("terraza")
-    if features.get("pool"):
-        amenities.append("pileta")
-    if features.get("gym"):
-        amenities.append("gimnasio")
-    if features.get("laundry"):
-        amenities.append("laundry")
-    if features.get("barbecue"):
-        amenities.append("parrilla")
-    if features.get("elevator"):
-        amenities.append("ascensor")
-    if features.get("security"):
-        amenities.append("seguridad 24hs")
+    if features.get("balcony"):     amenities.append("balcón")
+    if features.get("terrace"):     amenities.append("terraza")
+    if features.get("pool"):        amenities.append("pileta")
+    if features.get("gym"):         amenities.append("gimnasio")
+    if features.get("laundry"):     amenities.append("laundry")
+    if features.get("barbecue"):    amenities.append("parrilla")
+    if features.get("elevator"):    amenities.append("ascensor")
+    if features.get("security"):    amenities.append("seguridad 24hs")
     for tag in posting.get("tags", []):
         name = tag.get("label", "").lower()
         if name and name not in amenities:
@@ -97,7 +84,7 @@ def _posting_to_property(posting: dict) -> Optional[Property]:
         price_data = posting.get("priceOperationTypes", [{}])[0] if posting.get("priceOperationTypes") else {}
         price_usd, price_ars = _parse_price(price_data)
 
-        surface_total = posting.get("totalArea") or posting.get("totalSurface")
+        surface_total   = posting.get("totalArea") or posting.get("totalSurface")
         surface_covered = posting.get("coveredArea") or posting.get("coveredSurface")
 
         geo = posting.get("postingLocation", {}) or {}
@@ -112,19 +99,19 @@ def _posting_to_property(posting: dict) -> Optional[Property]:
             or "Desconocido"
         )
 
-        title = posting.get("title", "") or f"Prop. {prop_id}"
+        title       = posting.get("title", "") or f"Prop. {prop_id}"
         description = posting.get("descriptionNormalized", "") or posting.get("description", "")
-        rooms = posting.get("rooms")
-        bedrooms = posting.get("bedrooms")
-        bathrooms = posting.get("bathrooms")
-        floor_data = posting.get("postingFloor") or {}
-        floor = floor_data.get("floor")
-        total_floors = floor_data.get("totalFloors")
-        parking = bool(posting.get("parkingLots"))
-        amenities = _extract_amenities(posting)
-        photos_count = len(posting.get("photos", []))
-        antiquity = posting.get("antiquity")
-        expenses = posting.get("expenses")
+        rooms       = posting.get("rooms")
+        bedrooms    = posting.get("bedrooms")
+        bathrooms   = posting.get("bathrooms")
+        floor_data  = posting.get("postingFloor") or {}
+        floor       = floor_data.get("floor")
+        total_floors= floor_data.get("totalFloors")
+        parking     = bool(posting.get("parkingLots"))
+        amenities   = _extract_amenities(posting)
+        photos_count= len(posting.get("photos", []))
+        antiquity   = posting.get("antiquity")
+        expenses    = posting.get("expenses")
 
         prop_type_raw = posting.get("postingType", "").lower()
         if "casa" in prop_type_raw:
@@ -164,86 +151,85 @@ def _posting_to_property(posting: dict) -> Optional[Property]:
         return None
 
 
-class ZonaPropScraper(BaseScraper):
-    """Scrape property listings from ZonaProp."""
+def _parse_html(html: str) -> tuple[list[Property], bool]:
+    soup = BeautifulSoup(html, "lxml")
+    script = soup.find("script", id="__NEXT_DATA__")
+    if not script or not script.string:
+        return [], False
+    try:
+        data = json.loads(script.string)
+    except json.JSONDecodeError:
+        return [], False
+
+    props = (
+        data.get("props", {})
+        .get("pageProps", {})
+        .get("initialResultData", {})
+    )
+    if not props:
+        props = data.get("props", {}).get("pageProps", {})
+
+    postings = (
+        props.get("listingData", {}).get("postings", [])
+        or props.get("postings", [])
+        or []
+    )
+
+    properties = [p for p in (_posting_to_property(x) for x in postings) if p]
+
+    pagination   = props.get("pagination", {}) or {}
+    total_pages  = pagination.get("totalPages", 1)
+    current_page = pagination.get("currentPage", 1)
+    has_next     = current_page < total_pages
+
+    return properties, has_next
+
+
+class ZonaPropScraper:
+    """Scrape ZonaProp using a headless Chromium browser to bypass bot detection."""
 
     def _build_url(self, neighborhood: str, page: int = 1) -> str:
         slug = _slug(neighborhood)
         base = f"{BASE_URL}/departamentos-venta-{slug}"
-        if page > 1:
-            return f"{base}-pagina-{page}.html"
-        return f"{base}.html"
-
-    def _parse_page(self, html: str) -> tuple[list[Property], bool]:
-        """Parse a listing page. Returns (properties, has_next_page)."""
-        soup = BeautifulSoup(html, "lxml")
-        script = soup.find("script", id="__NEXT_DATA__")
-        if not script:
-            # Fallback: try JSON in script tags
-            scripts = soup.find_all("script", type="application/json")
-            for s in scripts:
-                try:
-                    data = json.loads(s.string or "")
-                    if "postings" in str(data):
-                        script = s
-                        break
-                except Exception:
-                    continue
-
-        if not script or not script.string:
-            return [], False
-
-        try:
-            data = json.loads(script.string)
-        except json.JSONDecodeError:
-            return [], False
-
-        # Navigate Next.js data structure
-        props = (
-            data.get("props", {})
-            .get("pageProps", {})
-            .get("initialResultData", {})
-        )
-        if not props:
-            # Try alternative path
-            props = data.get("props", {}).get("pageProps", {})
-
-        postings = (
-            props.get("listingData", {}).get("postings", [])
-            or props.get("postings", [])
-            or []
-        )
-
-        properties = []
-        for p in postings:
-            prop = _posting_to_property(p)
-            if prop:
-                properties.append(prop)
-
-        pagination = props.get("pagination", {}) or {}
-        total_pages = pagination.get("totalPages", 1)
-        current_page = pagination.get("currentPage", 1)
-        has_next = current_page < total_pages
-
-        return properties, has_next
+        return f"{base}-pagina-{page}.html" if page > 1 else f"{base}.html"
 
     def search(self, neighborhood: str, max_results: int = 50) -> list[Property]:
         properties: list[Property] = []
-        page = 1
 
-        while len(properties) < max_results:
-            url = self._build_url(neighborhood, page)
-            try:
-                response = self._get(url)
-                page_props, has_next = self._parse_page(response.text)
-            except Exception as e:
-                print(f"[ZonaProp] Error en página {page}: {e}")
-                break
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+                locale="es-AR",
+            )
+            page_obj = context.new_page()
+            pg = 1
 
-            properties.extend(page_props)
+            while len(properties) < max_results:
+                url = self._build_url(neighborhood, pg)
+                try:
+                    page_obj.goto(url, wait_until="networkidle", timeout=30000)
+                    html = page_obj.content()
+                except Exception as e:
+                    raise RuntimeError(f"Error cargando página {pg}: {e}") from e
 
-            if not has_next or not page_props:
-                break
-            page += 1
+                page_props, has_next = _parse_html(html)
+                properties.extend(page_props)
+
+                if not has_next or not page_props:
+                    break
+                pg += 1
+
+            browser.close()
 
         return properties[:max_results]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
