@@ -1,0 +1,448 @@
+"""
+Realistic demo properties for testing without internet access.
+Data reflects typical Buenos Aires real estate listings (2024-2025).
+"""
+
+from models import Property, PropertySource, PropertyType, OperationType
+
+
+DEMO_PROPERTIES: list[Property] = [
+    # --- PALERMO ---
+    Property(
+        id="demo-001",
+        source=PropertySource.DEMO,
+        url="https://www.zonaprop.com.ar/propiedades/demo-001.html",
+        title="Departamento 3 ambientes con balcón corrido - Palermo Hollywood",
+        price_usd=145000,
+        price_ars=None,
+        surface_total=75.0,
+        surface_covered=68.0,
+        rooms=3,
+        bedrooms=2,
+        bathrooms=1,
+        address="Thames 1850, Palermo Hollywood",
+        neighborhood="Palermo",
+        property_type=PropertyType.DEPARTAMENTO,
+        operation_type=OperationType.VENTA,
+        description=(
+            "Departamento luminoso en piso 4 con balcón corrido. Edificio del año 1975 con ascensor. "
+            "Necesita renovación integral: baños y cocina originales, pisos de madera en buen estado. "
+            "Excelente ubicación, a 3 cuadras del parque Las Heras. Sin cochera. Expensas bajas. "
+            "Propietario vende por mudanza al exterior, precio final negociable."
+        ),
+        expenses=85000,
+        floor=4,
+        total_floors=8,
+        parking=False,
+        amenities=["balcón", "ascensor"],
+        photos_count=12,
+        antiquity_years=49,
+    ),
+    Property(
+        id="demo-002",
+        source=PropertySource.DEMO,
+        url="https://www.zonaprop.com.ar/propiedades/demo-002.html",
+        title="Monoambiente luminoso - Palermo Soho",
+        price_usd=89000,
+        price_ars=None,
+        surface_total=38.0,
+        surface_covered=35.0,
+        rooms=1,
+        bedrooms=0,
+        bathrooms=1,
+        address="Armenia 1540, Palermo Soho",
+        neighborhood="Palermo",
+        property_type=PropertyType.DEPARTAMENTO,
+        operation_type=OperationType.VENTA,
+        description=(
+            "Monoambiente en piso 7 con muy buena luminosidad. Edificio 2005. "
+            "Estado impecable, recién renovado. Cocina americana. Vista despejada. "
+            "A pasos de Plaza Armenia y la zona gastronómica de Palermo Soho."
+        ),
+        expenses=65000,
+        floor=7,
+        total_floors=10,
+        parking=False,
+        amenities=["ascensor", "balcón"],
+        photos_count=18,
+        antiquity_years=19,
+    ),
+    Property(
+        id="demo-003",
+        source=PropertySource.DEMO,
+        url="https://www.mercadolibre.com.ar/inmuebles/demo-003",
+        title="Departamento 2 ambientes - Palermo, precio a convenir",
+        price_usd=112000,
+        price_ars=None,
+        surface_total=55.0,
+        surface_covered=50.0,
+        rooms=2,
+        bedrooms=1,
+        bathrooms=1,
+        address="Av. Santa Fe 3400, Palermo",
+        neighborhood="Palermo",
+        property_type=PropertyType.DEPARTAMENTO,
+        operation_type=OperationType.VENTA,
+        description=(
+            "2 ambientes amplio sobre avenida. Piso 2, edificio de 1960 sin ascensor. "
+            "Necesita trabajo: pintura, baño y cocina a renovar. "
+            "Instalación eléctrica actualizada. Precio fijado por sucesión, muy negociable."
+        ),
+        expenses=55000,
+        floor=2,
+        total_floors=5,
+        parking=False,
+        amenities=[],
+        photos_count=6,
+        antiquity_years=64,
+    ),
+    Property(
+        id="demo-004",
+        source=PropertySource.DEMO,
+        url="https://www.zonaprop.com.ar/propiedades/demo-004.html",
+        title="PH 3 amb con terraza privada - Villa Crespo/Palermo",
+        price_usd=168000,
+        price_ars=None,
+        surface_total=95.0,
+        surface_covered=72.0,
+        rooms=3,
+        bedrooms=2,
+        bathrooms=1,
+        address="Malabia 2100, Villa Crespo",
+        neighborhood="Villa Crespo",
+        property_type=PropertyType.PH,
+        operation_type=OperationType.VENTA,
+        description=(
+            "PH en planta alta con terraza descubierta de 23 m². Ideal para remodelar y capitalizar. "
+            "Techos originales de 3m de altura. Dos dormitorios amplios. "
+            "El edificio no tiene expensas significativas. A metros de Palermo Hollywood."
+        ),
+        expenses=20000,
+        floor=3,
+        total_floors=3,
+        parking=False,
+        amenities=["terraza"],
+        photos_count=15,
+        antiquity_years=55,
+    ),
+    # --- CABALLITO ---
+    Property(
+        id="demo-005",
+        source=PropertySource.DEMO,
+        url="https://www.zonaprop.com.ar/propiedades/demo-005.html",
+        title="Departamento 3 amb con cochera - Caballito",
+        price_usd=135000,
+        price_ars=None,
+        surface_total=80.0,
+        surface_covered=80.0,
+        rooms=3,
+        bedrooms=2,
+        bathrooms=1,
+        address="Av. Rivadavia 5200, Caballito",
+        neighborhood="Caballito",
+        property_type=PropertyType.DEPARTAMENTO,
+        operation_type=OperationType.VENTA,
+        description=(
+            "3 ambientes en piso 6 con excelente luminosidad y vista al Parque Rivadavia. "
+            "Incluye cochera. Edificio 1985, muy buen mantenimiento. "
+            "Cocina y baños originales, listos para renovar. Expensas razonables."
+        ),
+        expenses=120000,
+        floor=6,
+        total_floors=12,
+        parking=True,
+        amenities=["cochera", "ascensor", "balcón"],
+        photos_count=20,
+        antiquity_years=39,
+    ),
+    Property(
+        id="demo-006",
+        source=PropertySource.DEMO,
+        url="https://www.mercadolibre.com.ar/inmuebles/demo-006",
+        title="2 amb en planta baja con patio - Caballito Sur",
+        price_usd=88000,
+        price_ars=None,
+        surface_total=52.0,
+        surface_covered=48.0,
+        rooms=2,
+        bedrooms=1,
+        bathrooms=1,
+        address="Yerbal 1600, Caballito",
+        neighborhood="Caballito",
+        property_type=PropertyType.DEPARTAMENTO,
+        operation_type=OperationType.VENTA,
+        description=(
+            "Planta baja con acceso a patio compartido. Oscuro y húmedo, requiere obra. "
+            "Instalación eléctrica obsoleta. Apto banco. Precio bajo por estado."
+        ),
+        expenses=40000,
+        floor=1,
+        total_floors=8,
+        parking=False,
+        amenities=[],
+        photos_count=4,
+        antiquity_years=60,
+    ),
+    Property(
+        id="demo-007",
+        source=PropertySource.DEMO,
+        url="https://www.zonaprop.com.ar/propiedades/demo-007.html",
+        title="4 amb amplio con 2 baños y balcón - Caballito",
+        price_usd=178000,
+        price_ars=None,
+        surface_total=100.0,
+        surface_covered=95.0,
+        rooms=4,
+        bedrooms=3,
+        bathrooms=2,
+        address="Av. del Campo 900, Caballito",
+        neighborhood="Caballito",
+        property_type=PropertyType.DEPARTAMENTO,
+        operation_type=OperationType.VENTA,
+        description=(
+            "Amplio 4 ambientes ideal para familia. Dos baños, dos balcones. "
+            "Edificio 1978 en muy buen estado. Renovación cosmética solamente. "
+            "Excelente ubicación, cerca de la estación Primera Junta."
+        ),
+        expenses=140000,
+        floor=5,
+        total_floors=9,
+        parking=False,
+        amenities=["balcón", "ascensor"],
+        photos_count=22,
+        antiquity_years=46,
+    ),
+    # --- ALMAGRO ---
+    Property(
+        id="demo-008",
+        source=PropertySource.DEMO,
+        url="https://www.zonaprop.com.ar/propiedades/demo-008.html",
+        title="Departamento reciclado 2 amb - Almagro",
+        price_usd=105000,
+        price_ars=None,
+        surface_total=58.0,
+        surface_covered=55.0,
+        rooms=2,
+        bedrooms=1,
+        bathrooms=1,
+        address="Medrano 600, Almagro",
+        neighborhood="Almagro",
+        property_type=PropertyType.DEPARTAMENTO,
+        operation_type=OperationType.VENTA,
+        description=(
+            "Departamento completamente reciclado. Cocina abierta con isla, baño con ducha lluvia. "
+            "Pisos de porcelanato. Edificio 1955, fachada renovada. Luminoso, piso 4."
+        ),
+        expenses=72000,
+        floor=4,
+        total_floors=6,
+        parking=False,
+        amenities=["ascensor"],
+        photos_count=24,
+        antiquity_years=69,
+    ),
+    Property(
+        id="demo-009",
+        source=PropertySource.DEMO,
+        url="https://www.mercadolibre.com.ar/inmuebles/demo-009",
+        title="3 amb a refaccionar - Almagro, oportunidad",
+        price_usd=98000,
+        price_ars=None,
+        surface_total=72.0,
+        surface_covered=68.0,
+        rooms=3,
+        bedrooms=2,
+        bathrooms=1,
+        address="Yapeyú 400, Almagro",
+        neighborhood="Almagro",
+        property_type=PropertyType.DEPARTAMENTO,
+        operation_type=OperationType.VENTA,
+        description=(
+            "Ideal inversores. Departamento de 3 ambientes en estado original año 1970. "
+            "Techos altos de 2.8m. Mucha luz natural. El baño y la cocina necesitan renovación completa. "
+            "Sin muebles. Precio muy por debajo de mercado por necesidad de venta rápida."
+        ),
+        expenses=58000,
+        floor=3,
+        total_floors=7,
+        parking=False,
+        amenities=["ascensor", "balcón"],
+        photos_count=8,
+        antiquity_years=54,
+    ),
+    # --- BELGRANO ---
+    Property(
+        id="demo-010",
+        source=PropertySource.DEMO,
+        url="https://www.zonaprop.com.ar/propiedades/demo-010.html",
+        title="Semipiso 4 amb con vista al río - Belgrano",
+        price_usd=285000,
+        price_ars=None,
+        surface_total=130.0,
+        surface_covered=120.0,
+        rooms=4,
+        bedrooms=3,
+        bathrooms=2,
+        address="Av. del Libertador 6500, Belgrano",
+        neighborhood="Belgrano",
+        property_type=PropertyType.DEPARTAMENTO,
+        operation_type=OperationType.VENTA,
+        description=(
+            "Semipiso en piso 18 con vista al Río de la Plata. Edificio torre de 2002. "
+            "Cocina y baños originales listos para renovar a gusto. "
+            "Amenities completos: pileta, gym, sauna, SUM. Cochera opcional."
+        ),
+        expenses=280000,
+        floor=18,
+        total_floors=22,
+        parking=False,
+        amenities=["pileta", "gimnasio", "ascensor", "seguridad 24hs", "balcón"],
+        photos_count=30,
+        antiquity_years=22,
+    ),
+    Property(
+        id="demo-011",
+        source=PropertySource.DEMO,
+        url="https://www.zonaprop.com.ar/propiedades/demo-011.html",
+        title="2 amb con cochera - Belgrano R",
+        price_usd=148000,
+        price_ars=None,
+        surface_total=62.0,
+        surface_covered=58.0,
+        rooms=2,
+        bedrooms=1,
+        bathrooms=1,
+        address="Virrey del Pino 2400, Belgrano",
+        neighborhood="Belgrano",
+        property_type=PropertyType.DEPARTAMENTO,
+        operation_type=OperationType.VENTA,
+        description=(
+            "2 ambientes bien distribuidos en edificio de categoría. Cochera incluida. "
+            "Estado impecable. A pasos de los colegios y el shopping Dot."
+        ),
+        expenses=110000,
+        floor=3,
+        total_floors=8,
+        parking=True,
+        amenities=["cochera", "ascensor", "balcón"],
+        photos_count=19,
+        antiquity_years=15,
+    ),
+    # --- BOEDO ---
+    Property(
+        id="demo-012",
+        source=PropertySource.DEMO,
+        url="https://www.mercadolibre.com.ar/inmuebles/demo-012",
+        title="PH 3 amb con patio y terraza - Boedo",
+        price_usd=125000,
+        price_ars=None,
+        surface_total=90.0,
+        surface_covered=65.0,
+        rooms=3,
+        bedrooms=2,
+        bathrooms=1,
+        address="Av. Boedo 900, Boedo",
+        neighborhood="Boedo",
+        property_type=PropertyType.PH,
+        operation_type=OperationType.VENTA,
+        description=(
+            "PH planta baja con patio de 15m² y terraza propia de 10m². Ideal para reforma. "
+            "Techos de chapa, requieren reemplazo. Instalación eléctrica a actualizar. "
+            "Gran potencial: el barrio está en revalorización constante."
+        ),
+        expenses=15000,
+        floor=None,
+        total_floors=None,
+        parking=False,
+        amenities=["terraza"],
+        photos_count=10,
+        antiquity_years=70,
+    ),
+    Property(
+        id="demo-013",
+        source=PropertySource.DEMO,
+        url="https://www.zonaprop.com.ar/propiedades/demo-013.html",
+        title="1 amb luminoso en edificio nuevo - Boedo",
+        price_usd=72000,
+        price_ars=None,
+        surface_total=33.0,
+        surface_covered=30.0,
+        rooms=1,
+        bedrooms=0,
+        bathrooms=1,
+        address="Carlos Calvo 3100, Boedo",
+        neighborhood="Boedo",
+        property_type=PropertyType.DEPARTAMENTO,
+        operation_type=OperationType.VENTA,
+        description=(
+            "Monoambiente en edificio nuevo terminado en 2022. Cocina integrada, balcón francés. "
+            "Materiales de primera calidad. Sin necesidad de obra."
+        ),
+        expenses=55000,
+        floor=5,
+        total_floors=7,
+        parking=False,
+        amenities=["balcón", "ascensor"],
+        photos_count=14,
+        antiquity_years=2,
+    ),
+    # --- VILLA CRESPO ---
+    Property(
+        id="demo-014",
+        source=PropertySource.DEMO,
+        url="https://www.zonaprop.com.ar/propiedades/demo-014.html",
+        title="3 amb a refaccionar - Villa Crespo, precio oportunidad",
+        price_usd=118000,
+        price_ars=None,
+        surface_total=78.0,
+        surface_covered=74.0,
+        rooms=3,
+        bedrooms=2,
+        bathrooms=1,
+        address="Corrientes 5100, Villa Crespo",
+        neighborhood="Villa Crespo",
+        property_type=PropertyType.DEPARTAMENTO,
+        operation_type=OperationType.VENTA,
+        description=(
+            "Propietario viaja y acepta ofertas. 3 ambientes en muy buena planta, "
+            "ambientes bien separados. Edificio año 1968, con ascensor. "
+            "Requiere renovación total de cocina, baño y pisos. Techos altos originales. "
+            "Zona excelente: a 2 cuadras de Palermo y a pasos del shopping Abasto."
+        ),
+        expenses=80000,
+        floor=5,
+        total_floors=8,
+        parking=False,
+        amenities=["ascensor", "balcón"],
+        photos_count=9,
+        antiquity_years=56,
+    ),
+    Property(
+        id="demo-015",
+        source=PropertySource.DEMO,
+        url="https://www.mercadolibre.com.ar/inmuebles/demo-015",
+        title="2 amb reciclado premium - Villa Crespo",
+        price_usd=155000,
+        price_ars=None,
+        surface_total=60.0,
+        surface_covered=56.0,
+        rooms=2,
+        bedrooms=1,
+        bathrooms=1,
+        address="Triunvirato 4900, Villa Crespo",
+        neighborhood="Villa Crespo",
+        property_type=PropertyType.DEPARTAMENTO,
+        operation_type=OperationType.VENTA,
+        description=(
+            "Depto reciclado a nuevo con materiales premium. Cocina italiana, baño con bañera. "
+            "Sin necesidad de obra. Listo para entrar. Precio de venta definitivo."
+        ),
+        expenses=95000,
+        floor=6,
+        total_floors=8,
+        parking=False,
+        amenities=["ascensor", "balcón"],
+        photos_count=28,
+        antiquity_years=45,
+    ),
+]
