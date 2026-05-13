@@ -202,7 +202,6 @@ class MercadoLibreScraper(BaseScraper):
             "q": f"departamento venta {nb_display} capital federal",
             "limit": limit,
             "offset": offset,
-            "sort": "price_asc",
         }
 
         url = f"{API_BASE}/sites/MLA/search"
