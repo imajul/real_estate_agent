@@ -1,160 +1,166 @@
 """
-MercadoLibre Real Estate scraper.
+MercadoLibre Real Estate scraper using Playwright (headless Chromium).
 
-Uses the public MercadoLibre API (no auth required for search):
-  https://api.mercadolibre.com/sites/MLA/search?category=MLA1459&...
-
-Category IDs for Argentina real estate:
-  MLA1459 = Inmuebles (root)
-  MLA1467 = Departamentos
-  MLA1472 = Casas
-  MLA1475 = PHs
+URL pattern:
+  https://inmuebles.mercadolibre.com.ar/departamentos/venta/capital-federal/{neighborhood}/
+  https://inmuebles.mercadolibre.com.ar/departamentos/venta/capital-federal/{neighborhood}/_Desde_{offset}
 """
 
+import re
 import uuid
 from typing import Optional
-import httpx
+from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
-from scrapers.base import BaseScraper
 from models import Property, PropertySource, PropertyType, OperationType
 
 
-API_BASE = "https://api.mercadolibre.com"
+BASE_URL = "https://inmuebles.mercadolibre.com.ar"
+PAGE_SIZE = 48  # ML shows 48 results per page
 
-
-def get_access_token(client_id: str, client_secret: str) -> str:
-    """Fetch an OAuth2 app token via client credentials grant."""
-    resp = httpx.post(
-        f"{API_BASE}/oauth/token",
-        data={
-            "grant_type": "client_credentials",
-            "client_id": client_id,
-            "client_secret": client_secret,
-        },
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-        timeout=15,
-    )
-    resp.raise_for_status()
-    return resp.json()["access_token"]
-CATEGORY_MAP = {
-    PropertyType.DEPARTAMENTO: "MLA1467",
-    PropertyType.CASA: "MLA1472",
-    PropertyType.PH: "MLA1475",
-}
-
-# MercadoLibre neighborhood IDs for CABA (subset)
-NEIGHBORHOOD_IDS: dict[str, str] = {
-    "palermo": "TUxBUFBBTDQzNTM1",
-    "belgrano": "TUxBUEJFTDQ2MzU1",
-    "recoleta": "TUxBUFJFQzQyOTU1",
-    "caballito": "TUxBUENBQjQ3NDU1",
-    "flores": "TUxBUEZMTzQ3NTU1",
-    "almagro": "TUxBUEFMTTQ2OTU1",
-    "villa_crespo": "TUxBUFZJTDQ2MTU1",
-    "san_telmo": "TUxBUFNBTjQyMTU1",
-    "nunez": "TUxBUE5VTjQ0NTU1",
-    "colegiales": "TUxBUENPTDQ2MjU1",
-    "chacarita": "TUxBUENIQTQ2NjU1",
-    "boedo": "TUxBUEJPRTQ3MzU1",
+NEIGHBORHOOD_SLUGS: dict[str, str] = {
+    "palermo": "palermo",
+    "belgrano": "belgrano",
+    "recoleta": "recoleta",
+    "villa_crespo": "villa-crespo",
+    "caballito": "caballito",
+    "flores": "flores",
+    "almagro": "almagro",
+    "san_telmo": "san-telmo",
+    "puerto_madero": "puerto-madero",
+    "nunez": "nunez",
+    "villa_urquiza": "villa-urquiza",
+    "colegiales": "colegiales",
+    "chacarita": "chacarita",
+    "boedo": "boedo",
+    "liniers": "liniers",
 }
 
 
-def _extract_attribute(attributes: list[dict], attr_id: str) -> Optional[str]:
-    for a in attributes:
-        if a.get("id") == attr_id:
-            return a.get("value_name") or str(a.get("value_struct", {}).get("number", ""))
-    return None
+def _slug(neighborhood: str) -> str:
+    key = neighborhood.lower().replace(" ", "_")
+    return NEIGHBORHOOD_SLUGS.get(key, neighborhood.lower().replace("_", "-"))
 
 
-def _parse_surface(attributes: list[dict]) -> tuple[Optional[float], Optional[float]]:
-    total = _extract_attribute(attributes, "TOTAL_AREA")
-    covered = _extract_attribute(attributes, "COVERED_AREA")
+def _parse_price(text: str) -> tuple[Optional[float], Optional[float]]:
+    """Parse 'US$134.100' or '$ 50.000.000' → (usd, ars)."""
+    text = text.strip()
+    is_usd = "US$" in text or "USD" in text.upper()
+    digits = re.sub(r"[^\d]", "", text)
+    if not digits:
+        return None, None
     try:
-        total_f = float(total) if total else None
+        amount = float(digits)
     except ValueError:
-        total_f = None
-    try:
-        covered_f = float(covered) if covered else None
-    except ValueError:
-        covered_f = None
-    return total_f, covered_f
+        return None, None
+    return (amount, None) if is_usd else (None, amount)
 
 
-def _item_to_property(item: dict) -> Optional[Property]:
+def _parse_int(text: str) -> Optional[int]:
+    m = re.search(r"\d+", text)
+    return int(m.group()) if m else None
+
+
+def _parse_surface(texts: list[str]) -> tuple[Optional[float], Optional[float]]:
+    total = covered = None
+    for t in texts:
+        t_low = t.lower()
+        if "m²" in t_low or "m2" in t_low:
+            nums = re.findall(r"[\d]+", t)
+            if nums:
+                val = float(nums[0])
+                if "cub" in t_low:
+                    covered = val
+                else:
+                    total = val
+    return total, covered
+
+
+def _card_to_property(card) -> Optional[Property]:
     try:
-        item_id = item.get("id", str(uuid.uuid4()))
-        permalink = item.get("permalink", "")
-        title = item.get("title", "Sin título")
+        # Title
+        title_el = card.select_one("a.poly-component__title")
+        title = title_el.get_text(strip=True) if title_el else ""
+        url = title_el.get("href", "") if title_el else ""
+        if not title:
+            title = card.select_one("span.poly-component__headline")
+            title = title.get_text(strip=True) if title else f"Prop. {uuid.uuid4()}"
 
         # Price
-        currency = item.get("currency_id", "USD")
-        price = item.get("price")
-        price_usd = float(price) if currency == "USD" and price else None
-        price_ars = float(price) if currency == "ARS" and price else None
+        price_el = card.select_one(".andes-money-amount")
+        price_usd, price_ars = (None, None)
+        if price_el:
+            price_usd, price_ars = _parse_price(price_el.get_text(strip=True))
 
-        attributes = item.get("attributes", [])
-        surface_total, surface_covered = _parse_surface(attributes)
+        # All text spans for attributes
+        spans = [s.get_text(strip=True) for s in card.select(".poly-attributes-list__item, .poly-component__attributes span, [class*='attribute']")]
+        full_text = card.get_text(separator=" ", strip=True)
 
-        rooms_raw = _extract_attribute(attributes, "ROOMS")
-        bedrooms_raw = _extract_attribute(attributes, "BEDROOMS")
-        bathrooms_raw = _extract_attribute(attributes, "FULL_BATHROOMS")
-        try:
-            rooms = int(rooms_raw) if rooms_raw else None
-            bedrooms = int(bedrooms_raw) if bedrooms_raw else None
-            bathrooms = int(bathrooms_raw) if bathrooms_raw else None
-        except ValueError:
-            rooms = bedrooms = bathrooms = None
+        # Surface
+        surface_total, surface_covered = _parse_surface(spans + [full_text])
 
-        # Location
-        location = item.get("location", {})
-        city_data = location.get("city", {})
-        state_data = location.get("state", {})
-        neighborhood_data = location.get("neighborhood", {})
-        address_line = location.get("address_line", "")
-        neighborhood = neighborhood_data.get("name", "") or city_data.get("name", "")
-        city = state_data.get("name", "Buenos Aires")
+        # Rooms
+        rooms = None
+        m = re.search(r"(\d+)\s*(?:a\s*\d+\s*)?amb", full_text, re.I)
+        if m:
+            rooms = int(m.group(1))
 
-        address = address_line or neighborhood or "Sin dirección"
+        # Bedrooms
+        bedrooms = None
+        m = re.search(r"(\d+)\s*dorm", full_text, re.I)
+        if m:
+            bedrooms = int(m.group(1))
 
-        # Property type from category
-        cat_id = item.get("category_id", "")
-        if cat_id == "MLA1472":
+        # Bathrooms
+        bathrooms = None
+        m = re.search(r"(\d+)\s*ba[ñn]", full_text, re.I)
+        if m:
+            bathrooms = int(m.group(1))
+
+        # Address
+        addr_el = card.select_one(".poly-component__location, [class*='location'], [class*='address']")
+        if addr_el:
+            address = addr_el.get_text(strip=True)
+        else:
+            m = re.search(r"([A-ZÁÉÍÓÚ][^|,]+(?:,\s*[^|]+)?Capital Federal)", full_text)
+            address = m.group(0).strip() if m else "Sin dirección"
+
+        # Neighborhood from address
+        neighborhood = "Desconocido"
+        for nb in NEIGHBORHOOD_SLUGS:
+            if nb.replace("_", " ") in full_text.lower() or nb in full_text.lower():
+                neighborhood = nb.replace("_", " ").title()
+                break
+
+        # Parking
+        parking = bool(re.search(r"coch|garage|parking", full_text, re.I))
+
+        # Amenities
+        amenities = []
+        for kw, label in [("pileta", "pileta"), ("piscina", "pileta"), ("gimnasio", "gimnasio"),
+                           ("parrilla", "parrilla"), ("balcón", "balcón"), ("balcon", "balcón"),
+                           ("terraza", "terraza"), ("amenities", "amenities")]:
+            if kw in full_text.lower() and label not in amenities:
+                amenities.append(label)
+
+        # Property type
+        tl = title.lower() + full_text.lower()
+        if "casa" in tl:
             prop_type = PropertyType.CASA
-        elif cat_id == "MLA1475":
+        elif " ph " in tl or "ph " in tl:
             prop_type = PropertyType.PH
         else:
             prop_type = PropertyType.DEPARTAMENTO
 
-        # Amenities from attributes
-        amenities = []
-        for attr in attributes:
-            attr_id = attr.get("id", "")
-            val = attr.get("value_name", "")
-            if attr_id == "HAS_BALCONY" and val == "Si":
-                amenities.append("balcón")
-            elif attr_id == "HAS_POOL" and val == "Si":
-                amenities.append("pileta")
-            elif attr_id == "HAS_GYM" and val == "Si":
-                amenities.append("gimnasio")
-            elif attr_id == "PARKING_LOTS" and val not in ("0", "No", ""):
-                amenities.append("cochera")
-            elif attr_id == "HAS_GRILL" and val == "Si":
-                amenities.append("parrilla")
+        # Photos
+        photos = len(card.select("img"))
 
-        parking = "cochera" in amenities
-        photos_count = len(item.get("pictures", []))
-
-        # Antiquity
-        antiquity_raw = _extract_attribute(attributes, "PROPERTY_AGE")
-        try:
-            antiquity = int(antiquity_raw) if antiquity_raw else None
-        except ValueError:
-            antiquity = None
+        prop_id = str(uuid.uuid4())
 
         return Property(
-            id=item_id,
+            id=prop_id,
             source=PropertySource.MERCADOLIBRE,
-            url=permalink,
+            url=url,
             title=title,
             price_usd=price_usd,
             price_ars=price_ars,
@@ -165,91 +171,81 @@ def _item_to_property(item: dict) -> Optional[Property]:
             bathrooms=bathrooms,
             address=address,
             neighborhood=neighborhood,
-            city=city,
             property_type=prop_type,
             operation_type=OperationType.VENTA,
-            description=item.get("description", ""),
+            description="",
             parking=parking,
             amenities=amenities,
-            photos_count=photos_count,
-            antiquity_years=antiquity,
-            raw_data=item,
+            photos_count=photos,
+            raw_data={"title": title, "url": url},
         )
     except Exception:
         return None
 
 
-class MercadoLibreScraper(BaseScraper):
-    """Scrape property listings from MercadoLibre using their public API."""
+def _parse_html(html: str) -> tuple[list[Property], bool]:
+    soup = BeautifulSoup(html, "lxml")
+    cards = soup.select(".ui-search-result__wrapper")
+    properties = [p for p in (_card_to_property(c) for c in cards) if p]
 
-    def __init__(self, access_token: Optional[str] = None, **kwargs):
-        super().__init__(**kwargs)
-        self.client.headers.update({"Accept": "application/json"})
-        if access_token:
-            self.client.headers.update({"Authorization": f"Bearer {access_token}"})
+    # Has next page if we got a full page of results
+    has_next = len(cards) >= PAGE_SIZE
+    return properties, has_next
 
-    def _search_api(
-        self,
-        neighborhood: str,
-        prop_type: PropertyType = PropertyType.DEPARTAMENTO,
-        offset: int = 0,
-        limit: int = 50,
-    ) -> dict:
-        category = CATEGORY_MAP.get(prop_type, "MLA1467")
-        nb_display = neighborhood.replace("_", " ")
-        params: dict = {
-            "category": category,
-            "q": f"departamento venta {nb_display} capital federal",
-            "limit": limit,
-            "offset": offset,
-        }
 
-        url = f"{API_BASE}/sites/MLA/search"
-        response = self._get(url, params=params)
-        return response.json()
+class MercadoLibreScraper:
+    """Scrape MercadoLibre real estate using headless Chromium."""
 
-    def search(
-        self,
-        neighborhood: str,
-        max_results: int = 50,
-        prop_type: PropertyType = PropertyType.DEPARTAMENTO,
-    ) -> list[Property]:
+    def _build_url(self, neighborhood: str, offset: int = 0) -> str:
+        slug = _slug(neighborhood)
+        base = f"{BASE_URL}/departamentos/venta/capital-federal/{slug}/"
+        return f"{base}_Desde_{offset + 1}" if offset > 0 else base
+
+    def search(self, neighborhood: str, max_results: int = 50) -> list[Property]:
         properties: list[Property] = []
-        offset = 0
-        page_size = min(50, max_results)
 
-        while len(properties) < max_results:
-            try:
-                data = self._search_api(neighborhood, prop_type, offset, page_size)
-            except Exception as e:
-                print(f"[MercadoLibre] Error en offset {offset}: {e}")
-                break
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+                locale="es-AR",
+            )
+            page_obj = context.new_page()
+            offset = 0
 
-            results = data.get("results", [])
-            if not results:
-                break
+            while len(properties) < max_results:
+                url = self._build_url(neighborhood, offset)
+                try:
+                    page_obj.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    html = page_obj.content()
+                except Exception as e:
+                    raise RuntimeError(f"Error cargando ML página (offset {offset}): {e}") from e
 
-            for item in results:
-                prop = _item_to_property(item)
-                if prop:
-                    properties.append(prop)
+                page_props, has_next = _parse_html(html)
+                properties.extend(page_props)
 
-            paging = data.get("paging", {})
-            total = paging.get("total", 0)
-            offset += page_size
+                if not has_next or not page_props:
+                    break
+                offset += PAGE_SIZE
 
-            if offset >= total or offset >= max_results:
-                break
+            browser.close()
 
         return properties[:max_results]
 
-    def get_item_details(self, item_id: str) -> Optional[dict]:
-        """Fetch full item details including description."""
-        try:
-            item_resp = self._get(f"{API_BASE}/items/{item_id}")
-            desc_resp = self._get(f"{API_BASE}/items/{item_id}/description")
-            data = item_resp.json()
-            data["description"] = desc_resp.json().get("plain_text", "")
-            return data
-        except Exception:
-            return None
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+
+# Keep get_access_token for backwards compatibility
+def get_access_token(client_id: str, client_secret: str) -> str:
+    raise RuntimeError(
+        "MercadoLibre API requiere aprobación especial. "
+        "El scraper ahora usa Playwright directamente."
+    )
