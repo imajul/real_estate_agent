@@ -20,10 +20,8 @@ st.set_page_config(
 # ── Custom CSS ────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-  /* Main background */
   .stApp { background-color: #f4f7fb; }
 
-  /* Sidebar */
   [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #1F3864 0%, #2E5395 100%);
   }
@@ -34,7 +32,6 @@ st.markdown("""
   [data-testid="stSidebar"] .stTextInput label,
   [data-testid="stSidebar"] .stCheckbox label { color: #cfe2ff !important; font-weight: 500; }
 
-  /* Metric cards */
   [data-testid="metric-container"] {
     background: white;
     border: 1px solid #dde3f0;
@@ -43,7 +40,6 @@ st.markdown("""
     box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   }
 
-  /* Property cards */
   .prop-card {
     background: white;
     border-radius: 12px;
@@ -65,7 +61,6 @@ st.markdown("""
   .disc-pos { color:#276221; font-weight:700; }
   .disc-neg { color:#9C0006; font-weight:700; }
 
-  /* Section headers */
   .section-title {
     font-size: 13px; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.5px; color: #666; margin: 8px 0 4px;
@@ -79,7 +74,6 @@ st.markdown("""
     font-size:13px; color:#333; margin-top:10px;
   }
 
-  /* Download button */
   .stDownloadButton button {
     background: #1F3864 !important;
     color: white !important;
@@ -91,7 +85,6 @@ st.markdown("""
   }
   .stDownloadButton button:hover { background: #2E5395 !important; }
 
-  /* Run button */
   .stButton > button {
     background: #2E75B6 !important;
     color: white !important;
@@ -127,6 +120,12 @@ def discount_html(pct: float) -> str:
     return f'<span style="color:#555">{pct:+.1f}% vs mercado</span>'
 
 
+ALL_BARRIOS = [
+    "palermo", "belgrano", "recoleta", "villa_crespo", "caballito",
+    "flores", "almagro", "san_telmo", "nunez", "colegiales",
+    "chacarita", "boedo", "villa_urquiza", "saavedra",
+]
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## 🏠 Flipping BA")
@@ -144,11 +143,14 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 🔍 Búsqueda")
 
-    barrio = st.selectbox("Barrio", [
-        "palermo", "belgrano", "recoleta", "villa_crespo", "caballito",
-        "flores", "almagro", "san_telmo", "nunez", "colegiales",
-        "chacarita", "boedo", "villa_urquiza",
-    ], format_func=lambda x: x.replace("_", " ").title())
+    barrios = st.multiselect(
+        "Barrios",
+        ALL_BARRIOS,
+        default=["palermo"],
+        format_func=lambda x: x.replace("_", " ").title(),
+    )
+    if not barrios:
+        barrios = ["palermo"]
 
     fuentes = st.multiselect(
         "Fuentes",
@@ -159,22 +161,37 @@ with st.sidebar:
     if not fuentes:
         fuentes = ["zonaprop", "mercadolibre"]
 
-    if "mercadolibre" in fuentes:
-        st.markdown("**MercadoLibre (opcional)**")
-        ml_app_id = st.text_input("App ID", value=os.environ.get("ML_APP_ID", ""), placeholder="ej: 1234567890")
-        ml_secret  = st.text_input("Secret Key", value=os.environ.get("ML_SECRET_KEY", ""), placeholder="tu secret key", type="password")
-        st.caption("Sin credenciales se intenta acceso público. Guardá las claves en el archivo .env")
-    else:
-        ml_app_id = os.environ.get("ML_APP_ID", "")
-        ml_secret  = os.environ.get("ML_SECRET_KEY", "")
+    st.markdown("---")
+    st.markdown("### 🔎 Filtros")
 
-    top_n = st.slider("Propiedades a rankear", 3, 20, 10)
-    detalle_n = st.slider("Propiedades con detalle completo", 1, 10, 5)
+    ambientes_filter = st.multiselect(
+        "Ambientes",
+        [1, 2, 3, 4, "5+"],
+        default=[],
+        help="Dejá vacío para mostrar todos",
+    )
+
+    precio_rango = st.slider(
+        "Precio (USD)",
+        min_value=0,
+        max_value=1_000_000,
+        value=(0, 600_000),
+        step=10_000,
+        format="$%d",
+    )
+
+    superficie_rango = st.slider(
+        "Superficie (m²)",
+        min_value=0,
+        max_value=500,
+        value=(0, 300),
+        step=5,
+    )
 
     st.markdown("---")
     st.markdown("### ⚙️ Opciones")
-    modo_demo = st.checkbox("Modo demo (sin internet)", value=True,
-                            help="Usa datos de ejemplo para probar sin scraping real")
+    top_n = st.slider("Propiedades a rankear", 3, 20, 10)
+    detalle_n = st.slider("Propiedades con detalle completo", 1, 10, 5)
 
     st.markdown("---")
     run_btn = st.button("▶ Ejecutar análisis", use_container_width=True)
@@ -186,7 +203,6 @@ st.markdown("**Buenos Aires** — Identificá oportunidades de compra, renovaci�
 st.markdown("---")
 
 if not run_btn:
-    # Landing state
     col1, col2, col3 = st.columns(3)
     with col1:
         st.info("**1.** Configurá los parámetros en el panel izquierdo")
@@ -213,9 +229,8 @@ if not run_btn:
 if api_key:
     os.environ["ANTHROPIC_API_KEY"] = api_key
 
-# Reload modules to pick up fresh env
 for mod in list(sys.modules.keys()):
-    if any(mod.startswith(p) for p in ["models", "config", "demo_data", "scrapers", "analyzers", "reports"]):
+    if any(mod.startswith(p) for p in ["models", "config", "scrapers", "analyzers", "reports"]):
         del sys.modules[mod]
 
 try:
@@ -224,30 +239,18 @@ try:
     from analyzers.ai_evaluator import AIEvaluator, batch_evaluate
 except Exception as e:
     st.error(f"❌ Error al importar módulos: {e}")
-    st.info("Asegurate de estar en la carpeta correcta del proyecto y que el repositorio esté actualizado (`git pull origin main`).")
     st.stop()
 
 status = st.empty()
 progress = st.progress(0)
 
-# Step 1: collect properties
 status.info("🔍 Recolectando propiedades...")
-progress.progress(10)
+progress.progress(5)
 
 all_properties = []
 scraping_errors = []
 
-if modo_demo:
-    try:
-        from demo_data import DEMO_PROPERTIES
-        nb = barrio.lower()
-        all_properties = [p for p in DEMO_PROPERTIES if nb in p.neighborhood.lower()]
-        if not all_properties:
-            all_properties = list(DEMO_PROPERTIES)
-    except Exception as e:
-        st.error(f"❌ Error cargando datos demo: {e}")
-        st.stop()
-else:
+for barrio in barrios:
     if "zonaprop" in fuentes:
         try:
             from scrapers.zonaprop import ZonaPropScraper
@@ -255,40 +258,56 @@ else:
                 props = s.search(barrio, 50)
             all_properties.extend(props)
         except Exception as e:
-            scraping_errors.append(f"**ZonaProp:** {e}")
+            scraping_errors.append(f"**ZonaProp ({barrio}):** {e}")
 
     if "mercadolibre" in fuentes:
         try:
-            from scrapers.mercadolibre import MercadoLibreScraper, get_access_token
-            ml_token = None
-            if ml_app_id and ml_secret:
-                try:
-                    ml_token = get_access_token(ml_app_id.strip(), ml_secret.strip())
-                except Exception as e:
-                    scraping_errors.append(f"**MercadoLibre OAuth:** {e}")
-            with MercadoLibreScraper(access_token=ml_token) as s:
+            from scrapers.mercadolibre import MercadoLibreScraper
+            with MercadoLibreScraper() as s:
                 props = s.search(barrio, 50)
             all_properties.extend(props)
         except Exception as e:
-            scraping_errors.append(f"**MercadoLibre:** {e}")
+            scraping_errors.append(f"**MercadoLibre ({barrio}):** {e}")
 
-    if scraping_errors:
-        with st.expander("⚠️ Errores de scraping", expanded=True):
-            for err in scraping_errors:
-                st.warning(err)
+if scraping_errors:
+    with st.expander("⚠️ Errores de scraping", expanded=True):
+        for err in scraping_errors:
+            st.warning(err)
+
+# ── Apply filters ─────────────────────────────────────────────────────────────
+if ambientes_filter:
+    int_opts = [a for a in ambientes_filter if isinstance(a, int)]
+    include_5plus = "5+" in ambientes_filter
+    def _matches_rooms(p):
+        if p.rooms is None:
+            return True
+        if include_5plus and p.rooms >= 5:
+            return True
+        return p.rooms in int_opts
+    all_properties = [p for p in all_properties if _matches_rooms(p)]
+
+all_properties = [
+    p for p in all_properties
+    if p.price_usd is None or (precio_rango[0] <= p.price_usd <= precio_rango[1])
+]
+
+all_properties = [
+    p for p in all_properties
+    if (p.surface_total or p.surface_covered) is None
+    or (superficie_rango[0] <= (p.surface_total or p.surface_covered or 0) <= superficie_rango[1])
+]
 
 if not all_properties:
-    st.error("❌ No se encontraron propiedades.")
-    if not modo_demo:
-        st.info("💡 **Solución:** Activá el checkbox **'Modo demo (sin internet)'** en el panel izquierdo y volvé a ejecutar.")
+    st.error("❌ No se encontraron propiedades con los filtros aplicados.")
+    st.info("💡 Probá ampliar el rango de precio, superficie o seleccioná más barrios.")
     st.stop()
 
 progress.progress(40)
 
 # Step 2: market reference
 status.info("📊 Calculando referencia de mercado...")
-display_nb = barrio.replace("_", " ").title()
-market_ref = compute_market_reference(all_properties, barrio)
+display_nb = ", ".join(b.replace("_", " ").title() for b in barrios)
+market_ref = compute_market_reference(all_properties, barrios[0])
 progress.progress(55)
 
 # Step 3: AI evaluation
@@ -303,7 +322,8 @@ status.info("📄 Generando Excel...")
 from reports.excel import export_excel
 ts = datetime.now().strftime("%Y%m%d_%H%M")
 import tempfile as _tmp, os as _os
-excel_path = _os.path.join(_tmp.gettempdir(), f"flipping_{barrio}_{ts}.xlsx")
+barrio_slug = "_".join(barrios[:2])
+excel_path = _os.path.join(_tmp.gettempdir(), f"flipping_{barrio_slug}_{ts}.xlsx")
 export_excel(
     analyses=analyses,
     market_ref=market_ref,
@@ -328,7 +348,6 @@ col5.metric("🟡 Para analizar", watch_count)
 
 st.markdown("---")
 
-# Download button
 with open(excel_path, "rb") as f:
     excel_bytes = f.read()
 
@@ -337,14 +356,13 @@ with col_dl:
     st.download_button(
         label="📥 Descargar Excel",
         data=excel_bytes,
-        file_name=f"flipping_{barrio}_{ts}.xlsx",
+        file_name=f"flipping_{barrio_slug}_{ts}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
     )
 with col_info:
     ai_badge = "🤖 Análisis con Claude AI" if evaluator.available else "📐 Análisis heurístico"
-    demo_badge = "🎭 Modo demo" if modo_demo else "🌐 Datos reales"
-    st.markdown(f"**Barrio:** {display_nb} &nbsp;|&nbsp; **Fuentes:** {', '.join(fuentes)} &nbsp;|&nbsp; {demo_badge} &nbsp;|&nbsp; {ai_badge}")
+    st.markdown(f"**Barrios:** {display_nb} &nbsp;|&nbsp; **Fuentes:** {', '.join(fuentes)} &nbsp;|&nbsp; 🌐 Datos reales &nbsp;|&nbsp; {ai_badge}")
 
 st.markdown("---")
 
@@ -364,6 +382,7 @@ for i, a in enumerate(analyses, 1):
         "Barrio": p.neighborhood,
         "Título": p.title[:55],
         "Precio": p.display_price,
+        "Amb.": p.rooms or "—",
         "m²": f"{surface:.0f}" if surface else "—",
         "USD/m²": f"{p.price_per_m2:,.0f}" if p.price_per_m2 else "—",
         "vs. mercado": f"{a.discount_vs_market_pct:+.1f}%" if a.discount_vs_market_pct is not None else "—",
@@ -375,9 +394,9 @@ for i, a in enumerate(analyses, 1):
 df = pd.DataFrame(rows)
 
 def style_rec(val):
-    if val == "COMPRAR":     return "background-color:#C6EFCE; color:#276221; font-weight:bold"
+    if val == "COMPRAR":      return "background-color:#C6EFCE; color:#276221; font-weight:bold"
     if val == "ANALIZAR MÁS": return "background-color:#FFEB9C; color:#9C6500; font-weight:bold"
-    if val == "DESCARTAR":   return "background-color:#FFC7CE; color:#9C0006; font-weight:bold"
+    if val == "DESCARTAR":    return "background-color:#FFC7CE; color:#9C0006; font-weight:bold"
     return ""
 
 def style_disc(val):
@@ -438,6 +457,7 @@ for i, a in enumerate(analyses[:detalle_n], 1):
       <div class="stat-row" style="margin-top:14px">
         <div class="stat-item"><b>Precio:</b> {p.display_price}</div>
         <div class="stat-item"><b>Superficie:</b> {m2_str}</div>
+        <div class="stat-item"><b>Ambientes:</b> {p.rooms or "—"}</div>
         <div class="stat-item"><b>Precio/m²:</b> {ppm2_str}</div>
         <div class="stat-item"><b>Descuento:</b> {disc_html}</div>
         <div class="stat-item"><b>ARV:</b> {arv_str}</div>
@@ -446,7 +466,6 @@ for i, a in enumerate(analyses[:detalle_n], 1):
         <div class="stat-item"><b>ROI:</b> {roi_str}</div>
       </div>
       <div class="stat-row">
-        <div class="stat-item"><b>Ambientes:</b> {p.rooms or "—"}</div>
         <div class="stat-item"><b>Piso:</b> {floor_str}</div>
         <div class="stat-item"><b>Antigüedad:</b> {f"{p.antiquity_years} años" if p.antiquity_years else "—"}</div>
         <div class="stat-item"><b>Amenities:</b> {amenities}</div>
@@ -481,7 +500,7 @@ with col_dl2:
     st.download_button(
         label="📥 Descargar Excel completo",
         data=excel_bytes,
-        file_name=f"flipping_{barrio}_{ts}.xlsx",
+        file_name=f"flipping_{barrio_slug}_{ts}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         key="dl_bottom",
         use_container_width=True,

@@ -34,6 +34,7 @@ NEIGHBORHOOD_SLUGS: dict[str, str] = {
     "chacarita": "chacarita",
     "boedo": "boedo",
     "liniers": "liniers",
+    "saavedra": "saavedra",
 }
 
 

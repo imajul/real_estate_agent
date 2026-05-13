@@ -35,6 +35,7 @@ NEIGHBORHOOD_SLUGS: dict[str, str] = {
     "chacarita": "chacarita",
     "boedo": "boedo",
     "liniers": "liniers",
+    "saavedra": "saavedra",
 }
 
 BASE_URL = "https://www.zonaprop.com.ar"
