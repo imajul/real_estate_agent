@@ -196,21 +196,14 @@ class MercadoLibreScraper(BaseScraper):
         limit: int = 50,
     ) -> dict:
         category = CATEGORY_MAP.get(prop_type, "MLA1467")
+        nb_display = neighborhood.replace("_", " ")
         params: dict = {
             "category": category,
-            "condition": "not_specified",
+            "q": f"departamento venta {nb_display} capital federal",
             "limit": limit,
             "offset": offset,
             "sort": "price_asc",
         }
-
-        # Use neighborhood ID if known, otherwise free-text search
-        nb_id = NEIGHBORHOOD_IDS.get(neighborhood.lower().replace(" ", "_"))
-        if nb_id:
-            params["neighborhood_id"] = nb_id
-        else:
-            params["q"] = f"departamento {neighborhood} capital federal"
-            params["state"] = "TUxBUENBUGw3M2E1"  # Buenos Aires (Capital Federal)
 
         url = f"{API_BASE}/sites/MLA/search"
         response = self._get(url, params=params)
