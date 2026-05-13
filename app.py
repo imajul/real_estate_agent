@@ -283,7 +283,8 @@ progress.progress(90)
 status.info("📄 Generando Excel...")
 from reports.excel import export_excel
 ts = datetime.now().strftime("%Y%m%d_%H%M")
-excel_path = f"/tmp/flipping_{barrio}_{ts}.xlsx"
+import tempfile as _tmp, os as _os
+excel_path = _os.path.join(_tmp.gettempdir(), f"flipping_{barrio}_{ts}.xlsx")
 export_excel(
     analyses=analyses,
     market_ref=market_ref,
