@@ -155,6 +155,14 @@ with st.sidebar:
     if not fuentes:
         fuentes = ["zonaprop", "mercadolibre"]
 
+    if "mercadolibre" in fuentes:
+        st.markdown("**MercadoLibre (opcional)**")
+        ml_app_id = st.text_input("App ID", placeholder="ej: 1234567890", type="default")
+        ml_secret  = st.text_input("Secret Key", placeholder="tu secret key", type="password")
+        st.caption("Sin credenciales se intenta acceso público.")
+    else:
+        ml_app_id = ml_secret = ""
+
     top_n = st.slider("Propiedades a rankear", 3, 20, 10)
     detalle_n = st.slider("Propiedades con detalle completo", 1, 10, 5)
 
@@ -246,8 +254,14 @@ else:
 
     if "mercadolibre" in fuentes:
         try:
-            from scrapers.mercadolibre import MercadoLibreScraper
-            with MercadoLibreScraper() as s:
+            from scrapers.mercadolibre import MercadoLibreScraper, get_access_token
+            ml_token = None
+            if ml_app_id and ml_secret:
+                try:
+                    ml_token = get_access_token(ml_app_id.strip(), ml_secret.strip())
+                except Exception as e:
+                    scraping_errors.append(f"**MercadoLibre OAuth:** {e}")
+            with MercadoLibreScraper(access_token=ml_token) as s:
                 props = s.search(barrio, 50)
             all_properties.extend(props)
         except Exception as e:
