@@ -6,6 +6,9 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Flipping Inmobiliario BA",
@@ -133,8 +136,9 @@ with st.sidebar:
     api_key = st.text_input(
         "Anthropic API Key",
         type="password",
+        value=os.environ.get("ANTHROPIC_API_KEY", ""),
         placeholder="sk-ant-api03-...",
-        help="Obtené tu key en console.anthropic.com",
+        help="Obtené tu key en console.anthropic.com. También podés guardarla en el archivo .env",
     )
 
     st.markdown("---")
@@ -157,11 +161,12 @@ with st.sidebar:
 
     if "mercadolibre" in fuentes:
         st.markdown("**MercadoLibre (opcional)**")
-        ml_app_id = st.text_input("App ID", placeholder="ej: 1234567890", type="default")
-        ml_secret  = st.text_input("Secret Key", placeholder="tu secret key", type="password")
-        st.caption("Sin credenciales se intenta acceso público.")
+        ml_app_id = st.text_input("App ID", value=os.environ.get("ML_APP_ID", ""), placeholder="ej: 1234567890")
+        ml_secret  = st.text_input("Secret Key", value=os.environ.get("ML_SECRET_KEY", ""), placeholder="tu secret key", type="password")
+        st.caption("Sin credenciales se intenta acceso público. Guardá las claves en el archivo .env")
     else:
-        ml_app_id = ml_secret = ""
+        ml_app_id = os.environ.get("ML_APP_ID", "")
+        ml_secret  = os.environ.get("ML_SECRET_KEY", "")
 
     top_n = st.slider("Propiedades a rankear", 3, 20, 10)
     detalle_n = st.slider("Propiedades con detalle completo", 1, 10, 5)
