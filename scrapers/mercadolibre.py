@@ -20,6 +20,22 @@ from models import Property, PropertySource, PropertyType, OperationType
 
 
 API_BASE = "https://api.mercadolibre.com"
+
+
+def get_access_token(client_id: str, client_secret: str) -> str:
+    """Fetch an OAuth2 app token via client credentials grant."""
+    resp = httpx.post(
+        f"{API_BASE}/oauth/token",
+        data={
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+        },
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    return resp.json()["access_token"]
 CATEGORY_MAP = {
     PropertyType.DEPARTAMENTO: "MLA1467",
     PropertyType.CASA: "MLA1472",
@@ -165,6 +181,12 @@ def _item_to_property(item: dict) -> Optional[Property]:
 
 class MercadoLibreScraper(BaseScraper):
     """Scrape property listings from MercadoLibre using their public API."""
+
+    def __init__(self, access_token: Optional[str] = None, **kwargs):
+        super().__init__(**kwargs)
+        self.client.headers.update({"Accept": "application/json"})
+        if access_token:
+            self.client.headers.update({"Authorization": f"Bearer {access_token}"})
 
     def _search_api(
         self,
